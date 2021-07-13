@@ -1,0 +1,78 @@
+---
+- stat: path={{proj_dir}}/kafka/conf/server.properties
+  register: kafka_folder
+- name: kafka environment setup
+  block:
+  - name: create kafka lib dir
+    file: path="{{ proj_dir }}/kafka" state=directory recurse=yes owner={{kafka_user}} group={{kafka_group}} mode=0755
+  - name: untar kafka
+    unarchive:
+      src: "{{arch_dir}}/kafka.tgz"
+      dest: "{{ proj_dir }}/kafka"
+      extra_opts: --strip-components=1
+      remote_src: yes
+      owner: "{{ kafka_user }}"
+      group: "{{ kafka_group }}"
+      mode: "0755"
+  - name: Get Host Index
+    set_fact:
+      host_index: "{% for host in groups['slaves'] %} {%- if host == inventory_hostname -%} {{loop.index}} {% endif %} {% endfor %}"
+  - name: template configuration
+    template:
+      src: "{{ item }}.j2"
+      dest: "{{ proj_dir }}/kafka/config/{{ item }}"
+      backup: yes
+      owner: "{{ kafka_user }}"
+      group: "{{ kafka_group }}"
+      mode: "0644"
+    loop:
+      - server.properties
+  - name: Setting testRunKF files
+    template:
+      src: "{{ item }}.j2"
+      dest: "{{ proj_dir }}/kafka/bin/{{ item }}"
+      owner: "{{ kafka_user }}"
+      group: "{{ kafka_group }}"
+      mode: "0744"
+    loop:
+      - testRunKF
+  - name: ensure local & worker dirs exist
+    file:
+      dest: "{{ item }}"
+      state: directory
+      owner: "{{ kafka_user }}"
+      group: "{{ kafka_group }}"
+      recurse: yes
+      mode: "0755"
+    loop:
+      - "{{ kafka_log_dirs }}"
+      - "{{ kafka_snapshot_dirs }}"
+  - name: Adding kafka home dir to bashrc
+    lineinfile: dest=/home/{{kafka_user}}/.bashrc line="export KF_HOME={{proj_dir}}/kafka"
+  - name: Adding kafka bin dir to bashrc
+    lineinfile: dest=/home/{{kafka_user}}/.bashrc line="export PATH=$PATH:{{proj_dir}}/kafka/bin"
+  - name: Adding KF_NODES dir to bashrc
+    lineinfile: dest=/home/{{kafka_user}}/.bashrc line="export KF_NODES={{KF_NODES}}"
+  - name: Install kafka service
+    template:
+      src:  kafka.service.j2
+      dest: /etc/systemd/system/kafka.service
+      owner: "{{ kafka_user }}"
+      group: "{{ kafka_group }}"
+      mode: "0644"
+    #notify: restart kafka
+  - name: ensure all unzip dirs has correct permissions
+    file:
+      dest: "{{ proj_dir }}/kafka"
+      state: directory
+      owner: "{{ kafka_user }}"
+      group: "{{ kafka_group }}"
+      recurse: yes
+  - name: Ensure kafka is running by starting kafka service
+    systemd:
+      name: kafka
+      state: started
+  # - name: start kafka
+  #   become_user: "{{ kafka_user }}"
+  #   command: "{{ proj_dir }}/kafka/bin/kafka-server-start.sh -daemon {{ proj_dir }}/kafka/config/server.properties"
+  #when: not kafka_folder.stat.exists

@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+
+SPARK_HOME={{proj_dir}}/spark
+SPARK_LOCAL_IP={{ spark_local_ip }}     # the IP address Spark binds to on this node
+SPARK_LOCAL_DIRS={{ spark_local_dirs }} # | join(',')
+SPARK_WORKER_DIR={{ spark_worker_dir }}
+
+SPARK_MASTER_HOST={{ spark_master_host }}       # to bind the master to a different IP address or hostname
+SPARK_WORKER_CORES={{ spark_worker_cores }}     # to set the number of cores to use on this machine
+SPARK_WORKER_MEMORY={{ spark_worker_memory }}    # to set how much total memory workers have to give executors (e.g. 1000m, 2g)
+SPARK_WORKER_OPTS="{{ spark_worker_opts }}"     # See: https://spark.apache.org/docs/latest/spark-standalone.html
+
+OPENBLAS_NUM_THREADS={{ spark_openblas_num_threads }}  # disable multi-threading of OpenBLAS (because Spark should be keeping CPUs busy)
+
+# # For PySpark use
+# PYSPARK_PYTHON=python3
+# PYSPARK_DRIVER_PYTHON='jupyter'
+# PYSPARK_DRIVER_PYTHON_OPTS='notebook'
+# PYTHONPATH=$SPARK_HOME/python:$PYTHONPATH
+
+# HADOOP_HOME={{proj_dir}}/hadoop
+# HADOOP_CONF_DIR=$HADOOP_HOME/etc/hadoop
+# LD_LIBRARY_PATH=$HADOOP_HOME/lib/native
+# SPARK_DIST_CLASSPATH=$($HADOOP_HOME/bin/hadoop classpath)   # hadoop libs needed for spark-*-without-hadoop distributions

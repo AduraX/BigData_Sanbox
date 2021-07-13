@@ -1,0 +1,76 @@
+---
+- stat: path={{proj_dir}}/zookeeper/conf/zoo_sample.cfg
+  register: zookeeper_folder
+- name: zookeeper environment setup
+  block:
+  - name: Get Host Index
+    set_fact:
+      myId: "{% for host in groups['slaves'] %} {%- if host == inventory_hostname -%} {{loop.index}} {% endif %} {% endfor %}"
+  - name: create zookeeper lib dir
+    file: path="{{ proj_dir }}/zookeeper" state=directory recurse=yes owner={{zookeeper_user}} group={{zookeeper_group}} mode=0755
+  - name: untar zookeeper
+    unarchive:
+      src: "{{arch_dir}}/zookeeper.tar.gz"
+      dest: "{{ proj_dir }}/zookeeper"
+      extra_opts: --strip-components=1
+      remote_src: yes
+      owner: "{{ zookeeper_user }}"
+      group: "{{ zookeeper_group }}"
+      mode: "0755"
+  - name: template configuration
+    template:
+      src: "{{ item }}.j2"
+      dest: "{{ proj_dir }}/zookeeper/conf/{{ item }}"
+      backup: yes
+      owner: "{{ zookeeper_user }}"
+      group: "{{ zookeeper_group }}"
+      mode: "0644"
+    loop:
+      - zoo.cfg
+  - name: ensure data dirs exist
+    file:
+      dest: "{{ item }}"
+      state: directory
+      owner: "{{ zookeeper_user }}"
+      group: "{{ zookeeper_group }}"
+      recurse: yes
+      mode: "0755"
+    loop:
+      - "{{ zookeeper_data_dir }}"
+  - name: Adding zookeeper home dir to bashrc
+    lineinfile: dest=/home/{{zookeeper_user}}/.bashrc line="export ZK_HOME={{proj_dir}}/zookeeper"
+  - name: Adding zookeeper bin dir to bashrc
+    lineinfile: dest=/home/{{zookeeper_user}}/.bashrc line="export PATH=$PATH:{{proj_dir}}/zookeeper/bin"
+  - name: Adding ZK_NODES dir to bashrc
+    lineinfile: dest=/home/{{zookeeper_user}}/.bashrc line="export ZK_NODES={{ZK_NODES}}"
+  - name: touch myId file with the host "id"
+    lineinfile:
+      dest: "{{ zookeeper_data_dir }}/myid"
+      line: "{{myId|int}}"
+      state: present
+      create: yes
+      owner: "{{ zookeeper_user }}"
+      group: "{{ zookeeper_group }}"
+  - name: Install zookeeper service
+    template:
+      src: zookeeper.service.j2
+      dest: /etc/systemd/system/zookeeper.service
+      owner: "{{ zookeeper_user }}"
+      group: "{{ zookeeper_group }}"
+      mode: "0644"
+    #notify: restart zookeeper
+  - name: ensure all unzip dirs has correct permissions
+    file:
+      dest: "{{ proj_dir }}/zookeeper"
+      state: directory
+      owner: "{{ zookeeper_user }}"
+      group: "{{ zookeeper_group }}"
+      recurse: yes
+  - name: Ensure zookeeper is running by starting zookeeper service
+    systemd:
+      name: zookeeper
+      state: started
+  # - name: start zookeeper
+  #   become_user: "{{ zookeeper_user }}"
+  #   command: "{{ proj_dir }}/zookeeper/bin/zkServer.sh start"
+#  when: not zookeeper_folder.stat.exists

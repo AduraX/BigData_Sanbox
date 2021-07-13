@@ -1,0 +1,5 @@
+{% for host in nodes %}
+{%- if host['dns'] == inventory_hostname -%}
+{{ host['hostname'] }}
+{% endif %}
+{% endfor %}

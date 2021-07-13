@@ -1,0 +1,56 @@
+#! /bin/bash
+if test "`echo -e`" = "-e" ; then ECHO=echo ; else ECHO="echo -e" ; fi
+# hdp_Bucket=adurax.hdpcluster && aws s3 ls s3://$hdp_Bucket/lib/  | aws s3 rb s3://$hdp_Bucket --force # delete a bucket # include --force for non-empty bucket
+
+masHostname="master01A"
+invHostname="{{inventory_hostname}}"
+
+#[** Checking for bucket existence
+# Url: http://docs.aws.amazon.com/cli/latest/reference/s3api/head-bucket.html
+# This operation is useful to determine if a bucket exists and you have permission to access it.
+# The operation returns a 200 OK if the bucket exists and you have permission to access it.
+# Otherwise, the operation might return responses such as 404 Not Found and 403 Forbidden .
+bucketStatus=$(aws s3api head-bucket --bucket "{{hdp_Bucket}}" 2>&1)
+bucketExists=$(echo "$bucketStatus" | egrep -o '404|403|400')  && echo $bucketExists
+$ECHO '\nChecking for bucket existence ...'
+if [ -z "$bucketExists" ]; then
+  $ECHO "OK! Bucket owned and exists."
+  bucketExists="200"
+elif [ $bucketExists = "404" ]; then
+  $ECHO "Not Found! Bucket doesn't exist. \nCreating Bucket ..."
+  aws s3 mb s3://{{hdp_Bucket}}
+elif [ $bucketExists = "403" ]; then
+  $ECHO "Forbidden! Bucket exists but not owned. \nExiting ...\n"
+  exit
+elif [ $bucketExists = "400" ]; then
+  $ECHO "Bad Request! Complex situation. \nExiting ...\n" # "Bucket name specified is less than 3 or greater than 63 characters"
+  exit
+else
+  echo "Unknown error!"
+  exit
+fi
+#**] Checking for bucket existence
+
+if [ $bucketExists = "404" ]; then
+  if [ $masHostname = $invHostname  ]; then
+    echo "Downloading Spark ..."
+    curl "http://archive.apache.org/dist/spark/spark-{{sparVer}}/spark-{{sparVer}}-bin-hadoop2.7.tgz" | aws s3 cp - s3://{{hdp_Bucket}}/lib/spark.tgz
+
+    echo "Downloading Scala ..."
+    curl "https://downloads.lightbend.com/scala/{{scalVer}}/scala-{{scalVer}}.deb" | aws s3 cp - s3://{{hdp_Bucket}}/lib/scala.deb
+
+    echo "Downloading cassandra ..."
+    curl "https://apache.mirror.digitalpacific.com.au/cassandra/{{cassVer}}/apache-cassandra-{{cassVer}}-bin.tar.gz" | aws s3 cp - s3://{{hdp_Bucket}}/lib/cassandra.tar.gz
+
+    echo "Downloading Kafka ..."
+    curl "https://apache.mirror.digitalpacific.com.au/kafka/{{kafkVer}}/kafka_2.12-{{kafkVer}}.tgz" | aws s3 cp - s3://{{hdp_Bucket}}/lib/kafka.tgz
+
+    echo "Downloading Zookeeper ..."
+    curl "https://archive.apache.org/dist/zookeeper/zookeeper-{{zooVer}}/zookeeper-{{zooVer}}.tar.gz" | aws s3 cp - s3://{{hdp_Bucket}}/lib/zookeeper.tar.gz
+
+    echo "Downloading elasticsearch ..."
+    curl "https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{{elasVer}}.tar.gz" | aws s3 cp - s3://{{hdp_Bucket}}/lib/elasticsearch.tar.gz
+  fi
+
+  aws s3 cp s3://{{hdp_Bucket}}/lib  {{lib_dir}}/ --recursive
+fi

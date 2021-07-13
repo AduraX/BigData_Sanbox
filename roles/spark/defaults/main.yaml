@@ -1,0 +1,16 @@
+---
+spark_user: "{{hd_user}}"
+spark_group: "{{hd_group}}"
+
+spark_master_host: "master01A" # "{{ hostvars[groups['masters'][0]] }}" # localhost
+spark_local_ip: "{{ ansible_hostname }}"
+
+spark_worker_dir: "{{proj_dir}}/spark/work"
+spark_local_dirs: "{{data_dir}}/spark/tmp"
+spark_logs_dir: "{{data_dir}}/spark/logs"
+
+spark_openblas_num_threads: 1 # Disable multi-threading of OpenBLAS
+
+spark_worker_cores: "{{ ansible_processor_vcpus }}"
+spark_worker_memory: 0.5G
+spark_worker_opts: "-Dspark.worker.cleanup.enabled=true"

@@ -1,0 +1,12 @@
+---
+hdp_Bucket: adurax.bdstack
+hd_user: hduser
+hd_group: hdgroup
+hd_pass: hduser001
+proj_dir: /usr/local/bdplat
+data_dir: /var/bdData
+arch_dir: /usr/local/bdplat/Archive
+java_dir: /usr/lib/jvm/java-8-openjdk-amd64/jre
+CS_SEEDS: 10.0.1.183,10.0.1.228
+KF_NODES: slave11A:9011,slave12A:9012,slave13A:9013
+ZK_NODES: slave11A:2181,slave12A:2181,slave13A:2181 

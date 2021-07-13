@@ -1,0 +1,45 @@
+---
+cassandra_user: "{{hd_user}}"
+cassandra_group: "{{hd_group}}"
+# data_dir == /var/bdData # /var/lib/
+cassandra_dir: "{{data_dir}}/cassandra" 
+cassandra_seeds: "{{CS_SEEDS}}" # 127.0.0.1
+
+# For workloads with more data than can fit in memory, Cassandra's
+# bottleneck will be reads that need to fetch data from
+# disk. "concurrent_reads" should be set to (16 * number_of_drives) in
+# order to allow the operations to enqueue low enough in the stack
+# that the OS and drives can reorder them. Same applies to
+# "concurrent_counter_writes", since counter writes read the current
+# values before incrementing and writing them back.
+#
+# On the other hand, since writes are almost never IO bound, the ideal
+# number of "concurrent_writes" is dependent on the number of cores in
+# your system; (8 * number_of_cores) is a good rule of thumb.
+# cassandra_data_dir == {{data_dir}}/cassandra/data
+cassandra_concurrent_reads: 32 # "{{ (cassandra_data_dir | length) * 16 }}"
+cassandra_concurrent_writes: 32 # "{{ ansible_processor_vcpus * 8 }}"
+cassandra_concurrent_counter_writes: 32 # "{{ (cassandra_data_dir | length) * 16 }}"
+
+# For materialized view writes, as there is a read involved, so this should
+# be limited by the less of concurrent reads or concurrent writes.
+cassandra_concurrent_materialized_view_writes: "{{ [cassandra_concurrent_reads, cassandra_concurrent_writes] | min }}"
+
+# The strategy for optimizing disk read
+# Possible values are:
+# ssd (for solid state disks, the default)
+# spinning (for spinning disks)
+cassandra_disk_optimization_strategy: ssd
+
+cassandra_storage_port: 7000
+cassandra_native_transport_port: 9042
+
+cassandra_listen_address: "{% for host in nodes %} {%- if host['hostname'] == inventory_hostname -%} {{ host['ip'] }} {% endif %} {% endfor %}"
+
+cassandra_rpc_address: 0.0.0.0
+cassandra_broadcast_rpc_address: "{{cassandra_listen_address}}"
+
+#cassandra_jmx_port: 7199
+cassandra_endpoint_snitch: "Ec2Snitch"  # SimpleSnitch GossipingPropertyFileSnitch Ec2Snitch Ec2MultiRegionSnitch
+
+cassandra_start_rpc: true

@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# chmod +x $KF_HOME/testRunKF && $KF_HOME/testRunKF
+echo -e "\nChecking if Kafka (and ZooKeeper) is working properly ..."
+tTopic=testTopic; Exist="No"
+{{proj_dir}}/kafka/bin/kafka-topics.sh --create --topic $tTopic --replication-factor 3  --partitions 5  --zookeeper {{ZK_NODES}} #Create topic
+sleep 1
+lsTopic=$({{proj_dir}}/kafka/bin/kafka-topics.sh --list --zookeeper {{ZK_NODES}})
+for val in $lsTopic; do
+  if [ $val = $tTopic ]; then Exist="Yes"; fi
+done
+
+if [ $Exist="Yes" ]; then
+  {{proj_dir}}/kafka/bin/kafka-topics.sh --delete --zookeeper {{ZK_NODES}} --topic $tTopic > startup.log 2>&1 # delete topic after checking
+  echo -e "\nGood! Kafka (and ZooKeeper) is working properly ...\n"
+else
+ echo -e "\nSorry! Kafka (and ZooKeeper) is NOT working properly ...\n"
+fi

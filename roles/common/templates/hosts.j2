@@ -1,0 +1,14 @@
+127.0.0.1 localhost {{nodes[host_index|int]['hostname']}}
+
+10.0.1.48  master01A  master01A.adurax.org 
+10.0.1.183  slave11A  slave11A.adurax.org 
+10.0.1.228  slave12A  slave12A.adurax.org 
+10.0.1.175  slave13A  slave13A.adurax.org 
+
+# The following lines are desirable for IPv6 capable hosts
+::1 ip6-localhost ip6-loopback
+fe00::0 ip6-localnet
+ff00::0 ip6-mcastprefix
+ff02::1 ip6-allnodes
+ff02::2 ip6-allrouters
+ff02::3 ip6-allhosts 

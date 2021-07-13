@@ -1,0 +1,16 @@
+[Unit]
+Description=spark Service
+Documentation=http://spark.apache.org/
+Requires=network.target
+After=network.target
+
+[Service]
+RestartSec=5
+Restart=on-failure
+User={{spark_user}}
+Group={{spark_group}}
+ExecStart={{proj_dir}}/spark/sbin/start-all.sh
+ExecStop={{proj_dir}}/spark/sbin/stop-all.sh
+
+[Install]
+WantedBy=multi-user.target

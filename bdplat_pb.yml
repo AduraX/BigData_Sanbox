@@ -1,0 +1,29 @@
+---
+- name: Install common all nodes
+  hosts: all
+  vars_files:
+    - nodes.yaml
+  remote_user: hduser
+  become: yes
+  roles:
+    - common
+
+- name: Install on slave nodes
+  hosts: slaves
+  vars_files:
+    - nodes.yaml
+  remote_user: hduser
+  become: yes
+  roles:
+    - kafka
+    - cassandra
+    - spark
+
+- name: Install on master node(s)
+  hosts: masters
+  vars_files:
+    - nodes.yaml
+  remote_user: hduser
+  become: yes
+  roles:
+    - spark

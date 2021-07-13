@@ -1,0 +1,5 @@
+{% for host in nodes %}
+{%- if host['hostname'] != "master01A" -%}
+{{ host['hostname'] }}
+{% endif %}
+{% endfor %}

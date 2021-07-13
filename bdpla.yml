@@ -1,0 +1,40 @@
+---
+- name: Install on slave nodes
+  hosts: slaves
+  vars_files:
+    - nodes.yaml
+  remote_user: hduser
+  become: yes
+  roles:
+    - spark
+
+- name: Install on master node(s)
+  hosts: masters
+  vars_files:
+    - nodes.yaml
+  remote_user: hduser
+  become: yes
+  roles:
+    - spark
+
+
+# - name: Install common all nodes
+#   hosts: all
+#   remote_user: hduser
+#   become: yes
+#   tasks:
+#     - name: Print version
+#       debug:
+#         msg: "{{inventory_hostname}}"
+
+#-------------- Imporatnt --------------------
+# Run elasticsearch:   elasticsearch/bin/elasticsearch -d # re-run if you shutdown your computer
+# Run a query to test - it will error but should return json:  curl 'localhost:9200/agile_data_science/on_time_performance/_search?q=Origin:ATL&pretty'
+# sudo service mongod start
+# - name: Print version
+#   debug:
+#     msg: "{{inventory_hostname}} Host Index: {{host_index}}"
+
+
+
+# export ANSIBLE_HOST_KEY_CHECKING=False && ansible-playbook -i AnsibleInventory bdpla.yml

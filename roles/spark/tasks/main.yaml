@@ -1,0 +1,105 @@
+---
+- name: Check if scala is installed with unstalling if condition
+  shell: if [ -z `which scala` ]; then echo 0 ; else echo 1; fi
+  register: dpkg_scala_check
+- name: Scala environment setup
+  block:
+  - name: Capturing scala.deb package full path
+    shell: ls {{arch_dir}}/scala.deb
+    register: scala_deb_Path
+  - name: Install a scala.deb package
+    command: dpkg -i {{scala_deb_Path.stdout}}
+  - name: Adding Scala bin dir to bashrc
+    lineinfile: dest=/home/{{hd_user}}/.bashrc line="export PATH=$PATH:/usr/share/scala/bin"
+  when: 'dpkg_scala_check.stdout|int == 0'
+
+- stat: path={{proj_dir}}/spark/conf/spark-env.sh
+  register: spark_folder
+- name: Spark environment setup
+  block:
+  - name: create Spark lib dir
+    file: path="{{ proj_dir }}/spark" state=directory recurse=yes owner={{spark_user}} group={{spark_group}} mode=0755
+  - name: untar spark
+    unarchive:
+      src: "{{arch_dir}}/spark.tgz"
+      dest: "{{ proj_dir }}/spark"
+      extra_opts: --strip-components=1
+      remote_src: yes
+      owner: "{{ spark_user }}"
+      group: "{{ spark_group }}"
+      mode: "0755"
+  - name: template configuration
+    template:
+      src: "{{ item }}.j2"
+      dest: "{{ proj_dir }}/spark/conf/{{ item }}"
+      backup: yes
+      owner: "{{ spark_user }}"
+      group: "{{ spark_group }}"
+      mode: "0644"
+    loop:
+      - spark-env.sh
+      - spark-defaults.conf
+      - log4j.properties
+      - slaves
+  - name: template configuration
+    template:
+      src: "{{ item }}.j2"
+      dest: "{{ proj_dir }}/spark/bin/{{ item }}"
+      owner: "{{ spark_user }}"
+      group: "{{ spark_group }}"
+      mode: "0744"
+    loop:
+      - check-status.sh
+  - stat: path={{proj_dir}}/spark/conf/workers.template
+    register: workers_file
+  - name: Rename slaves to workers if Spark version 3
+    command: mv {{proj_dir}}/spark/conf/slaves {{proj_dir}}/spark/conf/workers
+    when: workers_file.stat.exists
+  - name: ensure local & worker dirs exist
+    file:
+      dest: "{{ item }}"
+      state: directory
+      owner: "{{ spark_user }}"
+      group: "{{ spark_group }}"
+      recurse: yes
+      mode: "0755"
+    loop:
+      - "{{ spark_worker_dir }}"
+      - "{{ spark_local_dirs }}"
+      - "{{ spark_logs_dir }}"
+  - name: Create empty logs/info.log
+    file: path="{{ spark_logs_dir }}/info.log" state=touch owner={{spark_user}} group={{spark_group}} mode=0764
+  - name: Adding Spark home dir to bashrc
+    lineinfile: dest=/home/{{spark_user}}/.bashrc line="export SPARK_HOME={{proj_dir}}/spark"
+  - name: Adding Spark bin dir to bashrc
+    lineinfile: dest=/home/{{spark_user}}/.bashrc line="export PATH=$PATH:{{proj_dir}}/spark/bin"
+  - name: ensure all unzip dirs has correct permissions
+    file:
+      dest: "{{ proj_dir }}/spark"
+      state: directory
+      owner: "{{ spark_user }}"
+      group: "{{ spark_group }}"
+      recurse: yes
+  when: not spark_folder.stat.exists
+
+- name: Set Host Index
+  set_fact:
+    host_index: "{% for host in nodes %} {%- if host['hostname'] == inventory_hostname -%} {{loop.index0}} {% endif %} {% endfor %}"
+- name: Stop & Restart Spark
+  block:
+  - name: Install spark service
+    template:
+      src:  spark.service.j2
+      dest: /etc/systemd/system/spark.service
+      owner: "{{ spark_user }}"
+      group: "{{ spark_group }}"
+      mode: "0644"
+  - name: stop spark service
+    systemd:
+      name: spark
+      state: stopped
+  - name: Ensure spark is running by starting spark service
+    systemd:
+      name: spark
+      state: started
+  when: "nodes[host_index|int]['isMaster']|bool"

@@ -1,0 +1,30 @@
+---
+nodes: 
+  - hostname: master01A
+    dns: ec2-13-229-180-103.ap-southeast-1.compute.amazonaws.com
+    ip: 10.0.1.48
+    bkid: 01
+    kfPort: 9001
+    esPort: 9201
+    isMaster: true  
+  - hostname: slave11A
+    dns: ec2-13-229-58-10.ap-southeast-1.compute.amazonaws.com
+    ip: 10.0.1.183
+    bkid: 11
+    kfPort: 9011
+    esPort: 9211
+    isMaster: false  
+  - hostname: slave12A
+    dns: ec2-13-212-206-5.ap-southeast-1.compute.amazonaws.com
+    ip: 10.0.1.228
+    bkid: 12
+    kfPort: 9012
+    esPort: 9212
+    isMaster: false  
+  - hostname: slave13A
+    dns: ec2-54-169-97-21.ap-southeast-1.compute.amazonaws.com
+    ip: 10.0.1.175
+    bkid: 13
+    kfPort: 9013
+    esPort: 9213
+    isMaster: false 

@@ -1,0 +1,89 @@
+---
+- name: Set Host Index
+  set_fact:
+    host_index: "{% for host in nodes %} {%- if host['hostname'] == inventory_hostname -%} {{loop.index0}} {% endif %} {% endfor %}"
+- name: Set hostname for individual host
+  template: src=hostname.j2 dest=/etc/hostname
+- name: ensure that the new hostname is preserved between restarts/reboots
+  command: "hostnamectl set-hostname {{nodes[host_index|int]['hostname']}}"
+# - name: ensure that the new hostname is preserved between restarts/reboots
+#   # https://aws.amazon.com/premiumsupport/knowledge-center/linux-static-hostname/
+#   command: "echo preserve_hostname: true >> /etc/cloud/cloud.cfg"
+# - name: Update hostname without rebooting server # 'sudo hostname -F /etc/hostname'
+#   shell: 'hostname -F /etc/hostname'
+
+- name: Add OpenJDK 8 repository from PPA and install its signing key
+  apt_repository:
+    repo: ppa:openjdk-r/ppa
+
+- name:  Install latest version of a list of packages ignoring "install-recommends"
+  apt:
+    name: "{{ packages }}"
+    state: latest
+    force: yes
+    install_recommends: no
+  vars:
+    packages:
+    - python-dev
+    - build-essential
+    - software-properties-common #python-software-properties
+    - libopenblas-dev
+    - openjdk-8-jdk-headless
+    - whois
+    - awscli
+
+- name:  Install latest version of a list of packages for master nodes"
+  apt:
+    name: "{{ packages }}"
+    state: latest
+    force: yes
+    install_recommends: no
+  vars:
+    packages:
+    - zip
+    - unzip
+    - wget
+    - sysstat
+    - tcpdump
+    - lsof
+    - ntp
+    - apt-transport-https
+  when: "nodes[host_index|int]['isMaster']|bool"
+
+- name: Generate encrypted password
+  shell: mkpasswd -m sha-512 {{ hd_pass }} -s "11223367"
+  register: encrypted_password
+
+- name: Creates group 'hdgroup'  and user 'hduser'
+  block:
+  - name: Creates group 'hdgroup'
+    group: name={{hd_group}} state=present
+  - name: Creates user 'hduser' with a bash shell, appending it to group 'hdgroup' and 'sudo' & Authorized the keys
+    user: name={{hd_user}} group={{hd_group}} groups="sudo" shell=/bin/bash password={{ encrypted_password.stdout }} comment="Big Data Platform"
+
+- name: Set ssh keys for all nodes
+  block:
+  - name: Copy hosts file to /etc/hosts
+    template: src=hosts.j2 dest=/etc/hosts backup=yes owner={{hd_user}} group={{hd_group}} mode=0600
+  - name: Copy public key into place
+    authorized_key: user={{hd_user}} key="{{lookup('file', 'roles/common/templates/id_rsa.pub')}}"
+  - name: Copy private key into place
+    template: src=id_rsa dest=/home/{{hd_user}}/.ssh/id_rsa owner={{hd_user}} group={{hd_group}} mode=0400
+  - name: Disable strick host key checking
+    template: src=config dest=/home/{{hd_user}}/.ssh/config owner={{hd_user}} group={{hd_group}} mode=0400
+
+- name: create {{proj_dir}}/lib directory
+  file: path={{proj_dir}}/lib state=directory recurse=yes owner={{hd_user}} group={{hd_group}} mode=0755
+- name: create {{arch_dir}} directory
+  file: path={{arch_dir}} state=directory owner={{hd_user}} recurse=yes group={{hd_group}} mode=0755
+
+#-------------- Java & Scalaenvironment setup ----------------------------------------------------------"
+- lineinfile: dest=/home/{{hd_user}}/.bashrc line="\n\n#~~~~~~~~~~~~~~~~~~~~~~~ Personal  environment setup ~~~~~~~~~~~~~~~~~~~~~~~"
+- lineinfile: dest=/home/{{hd_user}}/.bashrc line="export JAVA_HOME={{java_dir}}"
+- lineinfile: dest=/home/{{hd_user}}/.bashrc line="export PATH=$PATH:{{java_dir}}/bin"
+
+#------------ Copy files from S3 ----------------------------------------------------------"
+- name: Copy downloadApp.sh into place
+  template: src=downloadApp.sh.j2 dest={{proj_dir}}/downloadApp.sh owner={{hd_user}} group={{hd_group}} mode=0555
+- name: Copy files from S3
+  shell: "{{proj_dir}}/downloadApp.sh"

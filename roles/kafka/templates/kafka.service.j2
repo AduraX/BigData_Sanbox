@@ -1,0 +1,17 @@
+[Unit]
+Description=Apache Kafka
+Requires=network.target
+After=network.target
+#Requires=zookeeper.service
+#After=zookeeper.service
+
+[Service]
+RestartSec=5
+Restart=on-failure
+User={{kafka_user}}
+Group={{kafka_group}}
+ExecStart={{proj_dir}}/kafka/bin/kafka-server-start.sh  {{proj_dir}}/kafka/config/server.properties
+ExecStop={{proj_dir}}/kafka/bin/kafka-server-stop.sh
+
+[Install]
+WantedBy=multi-user.target

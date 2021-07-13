@@ -1,0 +1,6 @@
+---
+kafka_user: "{{hd_user}}"
+kafka_group: "{{hd_group}}"
+
+kafka_log_dirs: "{{data_dir}}/kafka/logs"
+kafka_snapshot_dirs: "{{data_dir}}/kafka/snapshot" # the directory where the snapshot is stored.

@@ -1,0 +1,287 @@
+
+Parameters:
+  Region:
+    Type: String
+    Default: ap-southeast-1
+    AllowedValues:
+      - us-east-1
+      - ap-southeast-1
+      - ap-southeast-2
+    Description: Enter the AWS region to deploy stack. Default is eu-west-1
+  VPCCidr:
+    AllowedPattern: '((\d{1,3})\.){3}\d{1,3}/\d{1,2}'
+    Type: String
+    Default: 10.0.0.0/16
+    Description: Enter the CIDR for your VPC
+  PublicSubnetACidr:
+    AllowedPattern: '((\d{1,3})\.){3}\d{1,3}/\d{1,2}'
+    Type: String
+    Default: 10.0.1.0/24
+    Description: Enter the CIDR for your Public Subnet A
+  PrivateSubnetACidr:
+    AllowedPattern: '((\d{1,3})\.){3}\d{1,3}/\d{1,2}'
+    Type: String
+    Default: 10.0.3.0/24
+    Description: Enter the CIDR for your Private Subnet A
+  KeyPair:
+    Type: String
+    Default: SingaporeKeyEc2
+    Description: Enter the name of pre-generated KeyPair
+  InstType:
+    Type: String
+    Default: t3a.medium
+    Description: Enter the name of Instance Type
+  VolSize:
+    Type: String
+    Default: 4
+    Description: Enter the Volume size
+Mappings:
+  RegionMap:
+    # Ubuntu Server 18.04 LTS (HVM) amd64 hvm:ebs-ssd
+    us-east-1:
+      HVM64: ami-07d0cf3af28718ef8
+    ap-southeast-1:
+      HVM64: ami-03b6f27628a4569c8
+    ap-southeast-2:
+      HVM64: ami-0edcec072887c2caa  
+Resources:
+  Ec2S3Role:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      Path: /
+  Ec2S3InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles:
+        - !Ref Ec2S3Role
+  Ec2S3RolePolicies:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: S3InstancePolicy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action: 's3:*'
+            Resource: '*'
+      Roles:
+        - !Ref Ec2S3Role
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VPCCidr
+      EnableDnsHostnames: 'true'
+      Tags:
+        - Key: Name
+          Value: VPC
+  IG:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        -  Key: Name
+           Value: IG
+  AttachIGtoVPC:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref IG
+      VpcId: !Ref VPC
+  PublicRT:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: Public-RT
+  PublicRouteToInternet:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref IG
+      RouteTableId: !Ref PublicRT
+    DependsOn: AttachIGtoVPC
+  # Create EIP which will be used by the NAT Gateway
+  NATEIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: !Ref VPC
+  EC2SG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security Group for EC2 to allow SSH from Bastion and expose HTTP 80
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+          Description: SSH
+        - IpProtocol: tcp
+          FromPort: 8899
+          ToPort: 8899
+          CidrIp: 0.0.0.0/0
+          Description: Jupyter
+        - IpProtocol: tcp
+          FromPort: 2181
+          ToPort: 2181
+          CidrIp: 0.0.0.0/0
+          Description: ZooKeeper
+        - IpProtocol: tcp
+          FromPort: 3888
+          ToPort: 3888
+          CidrIp: 0.0.0.0/0
+          Description: ZooKeeper
+        - IpProtocol: tcp
+          FromPort: 2888
+          ToPort: 2888
+          CidrIp: 0.0.0.0/0
+          Description: ZooKeeper
+        - IpProtocol: tcp
+          FromPort: 0
+          ToPort: 65535
+          CidrIp: !Ref VPCCidr
+      Tags:
+        - Key: Name
+          Value: EC2-SG
+      VpcId: !Ref VPC   
+  # ~~~~  Availability Zone(AZ) A Components ~~~~~~~~~~~~~
+  PublicSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Sub ${Region}a
+      CidrBlock: !Ref PublicSubnetACidr
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: PublicSubnetA
+  AssociatePublicSubnetAPublicRT:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRT
+      SubnetId: !Ref PublicSubnetA   
+
+  # ~~~~~ Cluster Nodes 
+  Master01A:
+    Type: AWS::EC2::Instance
+    Properties:
+      IamInstanceProfile: !Ref Ec2S3InstanceProfile
+      AvailabilityZone: !Sub ${Region}a
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeType: gp2
+            DeleteOnTermination: true
+            VolumeSize: !Ref VolSize
+      ImageId: !FindInMap [RegionMap, !Ref 'AWS::Region', HVM64]
+      InstanceType: !Ref InstType
+      KeyName: !Ref KeyPair
+      NetworkInterfaces:
+        - AssociatePublicIpAddress: true
+          DeviceIndex: 0
+          SubnetId: !Ref PublicSubnetA
+          GroupSet:
+            - !Ref EC2SG
+      Tags:
+        - Key: Name
+          Value: Master01A  
+  Slave11A:
+    Type: AWS::EC2::Instance
+    Properties:
+      IamInstanceProfile: !Ref Ec2S3InstanceProfile
+      AvailabilityZone: !Sub ${Region}a
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeType: gp2
+            DeleteOnTermination: true
+            VolumeSize: !Ref VolSize
+      ImageId: !FindInMap [RegionMap, !Ref 'AWS::Region', HVM64]
+      InstanceType: !Ref InstType
+      KeyName: !Ref KeyPair
+      NetworkInterfaces:
+        - AssociatePublicIpAddress: true
+          DeviceIndex: 0
+          SubnetId: !Ref PublicSubnetA
+          GroupSet:
+            - !Ref EC2SG
+      Tags:
+        - Key: Name
+          Value: Slave11A  
+  Slave12A:
+    Type: AWS::EC2::Instance
+    Properties:
+      IamInstanceProfile: !Ref Ec2S3InstanceProfile
+      AvailabilityZone: !Sub ${Region}a
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeType: gp2
+            DeleteOnTermination: true
+            VolumeSize: !Ref VolSize
+      ImageId: !FindInMap [RegionMap, !Ref 'AWS::Region', HVM64]
+      InstanceType: !Ref InstType
+      KeyName: !Ref KeyPair
+      NetworkInterfaces:
+        - AssociatePublicIpAddress: true
+          DeviceIndex: 0
+          SubnetId: !Ref PublicSubnetA
+          GroupSet:
+            - !Ref EC2SG
+      Tags:
+        - Key: Name
+          Value: Slave12A  
+  Slave13A:
+    Type: AWS::EC2::Instance
+    Properties:
+      IamInstanceProfile: !Ref Ec2S3InstanceProfile
+      AvailabilityZone: !Sub ${Region}a
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeType: gp2
+            DeleteOnTermination: true
+            VolumeSize: !Ref VolSize
+      ImageId: !FindInMap [RegionMap, !Ref 'AWS::Region', HVM64]
+      InstanceType: !Ref InstType
+      KeyName: !Ref KeyPair
+      NetworkInterfaces:
+        - AssociatePublicIpAddress: true
+          DeviceIndex: 0
+          SubnetId: !Ref PublicSubnetA
+          GroupSet:
+            - !Ref EC2SG
+      Tags:
+        - Key: Name
+          Value: Slave13A  
+
+Outputs: 
+  Master01AIp:
+    Value: !Sub ${Master01A.PrivateIp}
+    Description: 'Private IP of host to connect via SSH from Bastion Host.'
+  Master01ADns:
+    Value: !Sub ${Master01A.PublicDnsName}
+    Description: 'Private IP of host to connect via SSH from Bastion Host.'  
+  Slave11AIp:
+    Value: !Sub ${Slave11A.PrivateIp}
+    Description: 'Private IP of host to connect via SSH from Bastion Host.'
+  Slave11ADns:
+    Value: !Sub ${Slave11A.PublicDnsName}
+    Description: 'Private IP of host to connect via SSH from Bastion Host.'  
+  Slave12AIp:
+    Value: !Sub ${Slave12A.PrivateIp}
+    Description: 'Private IP of host to connect via SSH from Bastion Host.'
+  Slave12ADns:
+    Value: !Sub ${Slave12A.PublicDnsName}
+    Description: 'Private IP of host to connect via SSH from Bastion Host.'  
+  Slave13AIp:
+    Value: !Sub ${Slave13A.PrivateIp}
+    Description: 'Private IP of host to connect via SSH from Bastion Host.'
+  Slave13ADns:
+    Value: !Sub ${Slave13A.PublicDnsName}
+    Description: 'Private IP of host to connect via SSH from Bastion Host.' 

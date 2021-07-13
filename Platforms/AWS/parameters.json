@@ -1,0 +1,30 @@
+[
+  {
+    "ParameterKey": "Region",
+    "ParameterValue": "ap-southeast-1"
+  },
+  {
+    "ParameterKey": "VPCCidr",
+    "ParameterValue": "10.0.0.0/16"
+  },
+  {
+    "ParameterKey": "PublicSubnetACidr",
+    "ParameterValue": "10.0.1.0/24"
+  },
+  {
+    "ParameterKey": "PrivateSubnetACidr",
+    "ParameterValue": "10.0.3.0/24"
+  },
+  {
+    "ParameterKey": "KeyPair",
+    "ParameterValue": "SingaporeKeyEc2"
+  },
+  {
+    "ParameterKey": "InstType",
+    "ParameterValue": "t3a.large"  
+  },
+  {
+    "ParameterKey": "VolSize",
+    "ParameterValue": "8"
+  }
+]

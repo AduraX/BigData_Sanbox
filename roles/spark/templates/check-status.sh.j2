@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# chmod +x $SPARK_HOME/bin/check-status.sh && $SPARK_HOME/bin/check-status.sh
+# kafka-topics.sh --create --topic top345 --replication-factor 3  --partitions 5  --zookeeper $ZK_NODES
+
+serviceStatus() { # para: $node $service
+  outq=$(ssh -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR $nodeUser@$1 "systemctl status $2 2>&1")
+  if grep -q 'could not be found' <<< "$outq"; then
+    echo -e "\nSorry! $2 service DOES NOT exist on node: $1 ...\nExiting ...\n"; return 0
+  elif grep -q 'active (running)' <<< "$outq"; then
+    echo -e "\n$2 service running on node: $1 ..."
+  else
+    echo -e "\nRestarting $2 service on node: $1 ..."
+    ssh -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR $nodeUser@$1 'systemctl restart $2 > /dev/null'
+  fi
+
+  sleep 1
+  outp=$(ssh -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR $nodeUser@$1 "ps -ef | grep $2 | grep -v grep | awk '{print \$2}'  ORS=' '")
+  [ -z "$outp" ] && echo -e "Sorry! $2 NOT running on $1 node ..." || echo -e "Good! $2 running on $1 node with PID[$outp] ..."
+}
+
+masterStatus() { # para: $service
+  outq=$(sudo systemctl status $1 2>&1)
+  if grep -q 'could not be found' <<< "$outq"; then
+    echo -e "\nSorry! $1 service DOES NOT exist on localhost: ${HOSTNAME,,} ...\nExiting ...\n"; return 0
+  elif grep -q 'active (running)' <<< "$outq"; then
+    echo -e "\n$1 service running on localhost: ${HOSTNAME,,} ..."
+  else
+    echo -e "\nRestarting $1 service on localhost: ${HOSTNAME,,} ..."
+    sudo systemctl restart $1 > /dev/null
+  fi
+
+  sleep 1
+  outp=$(ps -ef | grep $1 | grep -v grep | awk '{print $2}' ORS=' ')
+  [ -z "$outp" ] && echo -e "Sorry! $1 NOT running on localhost: $HOSTNAME ..." || echo -e "Good! $1 running on localhost: $HOSTNAME with PID: $outp ..."
+}
+
+#=== Main Function Starts Here ===
+nodeUser=hduser
+nodes=(slave13a slave12a slave11a master01a)
+for node in "${nodes[@]}" ; do
+  if [[ "$node" != "${HOSTNAME,,}" ]]; then
+    echo -e "\n======= Sshing into Node: $node ======="
+    serviceStatus $node zookeeper
+    serviceStatus $node kafka
+    serviceStatus $node cassandra
+    echo -e "\n"
+  fi
+done
+
+echo -e "\n======= Sshing into localhost: ${HOSTNAME,,} ======="
+masterStatus spark
+
+ssh -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR $nodeUser@slave13A {{proj_dir}}/kafka/bin/testRunKF

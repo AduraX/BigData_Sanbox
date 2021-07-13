@@ -1,0 +1,5 @@
+---
+zookeeper_user: "{{hd_user}}"
+zookeeper_group: "{{hd_group}}"
+zookeeper_data_dir: "{{data_dir}}/zookeeper/data"
+zookeeper_logs_dir: "{{data_dir}}/zookeeper/logs"

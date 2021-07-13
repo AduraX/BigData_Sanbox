@@ -1,0 +1,15 @@
+[Unit]
+Description=Cassandra Database Service
+Documentation=http://cassandra.apache.org/
+Requires=network.target
+After=network.target
+
+[Service]
+RestartSec=5
+Restart=on-failure
+User={{cassandra_user}}
+Group={{cassandra_group}}
+ExecStart={{proj_dir}}/cassandra/bin/cassandra -f
+
+[Install]
+WantedBy=multi-user.target

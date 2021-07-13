@@ -1,0 +1,65 @@
+---
+- stat: path={{proj_dir}}/cassandra/conf/cassandra-env.sh
+  register: cassandra_folder
+- name: cassandra environment setup
+  block:
+  - name: create cassandra lib dir
+    file: path="{{ proj_dir }}/cassandra" state=directory recurse=yes owner={{cassandra_user}} group={{cassandra_group}} mode=0755
+  - name: untar cassandra
+    unarchive:
+      src: "{{arch_dir}}/cassandra.tar.gz"
+      dest: "{{ proj_dir }}/cassandra"
+      extra_opts: --strip-components=1
+      remote_src: yes
+      owner: "{{ cassandra_user }}"
+      group: "{{ cassandra_group }}"
+      mode: "0755"
+  - name: create data directories
+    file:
+      name: "{{ item }}"
+      state: directory
+      owner: "{{ cassandra_user }}"
+      group: "{{ cassandra_group }}"
+      recurse: yes
+      mode: "0755"
+    loop:
+      - "{{ cassandra_dir }}/data"
+      - "{{ cassandra_dir }}/commitlog"
+      - "{{ cassandra_dir }}/saved_caches"
+      - "{{ cassandra_dir }}/hints"
+      - "{{ cassandra_dir }}/logs"
+  - name: Template configuration
+    template:
+      src: "{{ item }}.j2"
+      dest: "{{ proj_dir }}/cassandra/conf/{{ item }}"
+      backup: yes
+      owner: "{{ cassandra_user }}"
+      group: "{{ cassandra_group }}"
+      mode: "0644"
+    loop:
+      - cassandra.yaml
+      - cassandra-env.sh
+  - name: Adding cassandra home dir to bashrc
+    lineinfile: dest=/home/{{hd_user}}/.bashrc line="export CASSANDRA_HOME={{proj_dir}}/cassandra"
+  - name: Adding cassandra bin dir to bashrc
+    lineinfile: dest=/home/{{hd_user}}/.bashrc line="export PATH=$PATH:{{proj_dir}}/cassandra/bin"
+  - name: Install cassandra service
+    template:
+      src: cassandra.service.j2
+      dest: /etc/systemd/system/cassandra.service
+      owner: "{{ cassandra_user }}"
+      group: "{{ cassandra_group }}"
+      mode: "0644"
+    #notify: restart cassandra
+  - name: ensure all unzip dirs has correct permissions
+    file:
+      dest: "{{proj_dir}}/cassandra"
+      state: directory
+      owner: "{{ cassandra_user }}"
+      group: "{{ cassandra_group }}"
+      recurse: yes
+  - name: Ensure cassandra is running by starting cassandra service
+    systemd:
+      name: cassandra
+      state: started
+  when: not cassandra_folder.stat.exists
